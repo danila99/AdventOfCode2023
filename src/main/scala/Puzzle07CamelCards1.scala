@@ -3,10 +3,44 @@ import CamelCards._
 import scala.annotation.tailrec
 
 object Puzzle07CamelCards1 extends App with inputFileArgs with CommonUtils {
+  def createCard(face: Char): Card = face match {
+    case 'A' => Ace
+    case 'K' => King
+    case 'Q' => Queen
+    case 'J' => Jack
+    case 'T' => Ten
+    case '9' => Nine
+    case '8' => Eight
+    case '7' => Seven
+    case '6' => Six
+    case '5' => Five
+    case '4' => Four
+    case '3' => Three
+    case '2' => Two
+    case unknown => throw new IllegalArgumentException(s"unknown face: $unknown")
+  }
+
+  def handTypeStrategy(cards: List[Card]): HandType = {
+    val grouped = cards.groupBy(_.getClass.getName)
+    val sameCardsSize: Seq[Int] = grouped.map { case (_, labels) => labels.size }.toSeq.sorted.reverse
+    val maxTwoRanks = (sameCardsSize.head, sameCardsSize.tail.headOption.getOrElse(0))
+    maxTwoRanks match {
+      case (5, _) => FiveOfAKind
+      case (4, _) => FourOfAKind
+      case (3, 2) => FullHouse
+      case (3, _) => ThreeOfAKind
+      case (2, 2) => TwoPair
+      case (2, _) => OnePair
+      case (1, _) => HighCard
+      case (x, y) => throw new IllegalArgumentException(s"unknown ranks: $x $y")
+    }
+  }
+
   val hands = for {
     line <- getLines
-    (cards, bet) = splitInTwo(" ", line)
-  } yield Hand(cards, bet.toInt)
+    (cardsStr, betStr) = splitInTwo(" ", line)
+    cards = cardsStr.toList.map(createCard)
+  } yield Hand(cards, betStr.toInt, handTypeStrategy)
 
   val totalWinnings: BigInt = hands.sorted.zipWithIndex.foldLeft(BigInt(0)) {
     case (total, (hand, index)) => total + (hand.bet * (index + 1))
@@ -16,58 +50,25 @@ object Puzzle07CamelCards1 extends App with inputFileArgs with CommonUtils {
 }
 
 object CamelCards {
-  // A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2
-  sealed trait Label
-  case object Ace extends Label
-  case object King extends Label
-  case object Queen extends Label
-  case object Jack extends Label
-  case object TEN extends Label
-  case object NINE extends Label
-  case object EIGHT extends Label
-  case object SEVEN extends Label
-  case object SIX extends Label
-  case object FIVE extends Label
-  case object FOUR extends Label
-  case object THREE extends Label
-  case object TWO extends Label
-
-  final case class Card(label: Label) {
-    lazy val rank: Byte = label match {
-      case Ace => 12
-      case King => 11
-      case Queen => 10
-      case Jack => 9
-      case TEN => 8
-      case NINE => 7
-      case EIGHT => 6
-      case SEVEN => 5
-      case SIX => 4
-      case FIVE => 3
-      case FOUR => 2
-      case THREE => 1
-      case TWO => 0
-    }
+  // A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2, Joker
+  sealed trait Card {
+    val rank: Byte
   }
 
-  object Card {
-    def apply(face: Char): Card = face match {
-      case 'A' => Card(Ace)
-      case 'K' => Card(King)
-      case 'Q' => Card(Queen)
-      case 'J' => Card(Jack)
-      case 'T' => Card(TEN)
-      case '9' => Card(NINE)
-      case '8' => Card(EIGHT)
-      case '7' => Card(SEVEN)
-      case '6' => Card(SIX)
-      case '5' => Card(FIVE)
-      case '4' => Card(FOUR)
-      case '3' => Card(THREE)
-      case '2' => Card(TWO)
-      case unknown => throw new IllegalArgumentException(s"unknown face: $unknown")
-    }
-  }
+  case object Ace extends Card { val rank = 13 }
+  case object King extends Card { val rank = 12 }
+  case object Queen extends Card { val rank = 11 }
+  case object Jack extends Card { val rank = 10 }
+  case object Ten extends Card { val rank = 9 }
+  case object Nine extends Card { val rank = 8 }
+  case object Eight extends Card { val rank = 7 }
+  case object Seven extends Card { val rank = 6 }
+  case object Six extends Card { val rank = 5 }
+  case object Five extends Card { val rank = 4 }
+  case object Four extends Card { val rank = 3 }
+  case object Three extends Card { val rank = 2 }
+  case object Two extends Card { val rank = 1 }
+  case object Joker extends Card { val rank = 0 }
 
   sealed trait HandType
   case object FiveOfAKind extends HandType
@@ -78,24 +79,9 @@ object CamelCards {
   case object OnePair extends HandType
   case object HighCard extends HandType
 
-  final case class Hand(cards: List[Card], bet: Int) extends Comparable[Hand] {
-    lazy val handType: HandType = {
-      val grouped = cards.groupBy(_.label)
-      val sameCardsSize: Seq[Int] = grouped.map { case (_, labels) => labels.size }.toSeq.sorted.reverse
-      val maxTwoRanks = (sameCardsSize.head, sameCardsSize.tail.headOption.getOrElse(0))
-      maxTwoRanks match {
-        case (5, _) => FiveOfAKind
-        case (4, _) => FourOfAKind
-        case (3, 2) => FullHouse
-        case (3, _) => ThreeOfAKind
-        case (2, 2) => TwoPair
-        case (2, _) => OnePair
-        case (1, _) => HighCard
-        case (x, y) => throw new IllegalArgumentException(s"unknown ranks: $x $y")
-      }
-    }
-
-    lazy val handTypeRank: Byte = handType match {
+  final case class Hand(cards: List[Card], bet: Int, handTypeStrategy: List[Card] => HandType)
+    extends Comparable[Hand] {
+    lazy val handTypeRank: Byte = handTypeStrategy(cards) match {
       case FiveOfAKind => 6
       case FourOfAKind => 5
       case FullHouse => 4
@@ -114,10 +100,6 @@ object CamelCards {
     }
 
     override def compareTo(otherHand: Hand): Int = compareRanks(otherHand.rank, 0)
-  }
-
-  object Hand {
-    def apply(cards: String, bet: Int): Hand = Hand(cards.toList.map(Card(_)), bet)
   }
 }
 
