@@ -6,5 +6,5 @@ trait CommonUtils {
     case _ => throw new IllegalArgumentException(s"cannot split on [$delimiter], target: $target")
   }
 
-  val numbersPattern: Regex = """\d+""".r
+  val numbersPattern: Regex = """-?\d+""".r
 }
