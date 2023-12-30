@@ -2,8 +2,8 @@ import PipeMaze._
 
 object Puzzle10PipeMaze1 extends App with inputFileArgs {
   // look for the correct starting 'exits' in the input file. I was too lazy to find it with the code.
-  // We are guaranteed to have two exits from the Start pipe by the rules, add them below to 'start' value.
-  val startPipe: Pipe = Pipe('S', Seq(East, South))
+  // We are guaranteed to have two exits from the Start pipe by the rules, add them to 'startPipe' value below.
+  val startPipe: Pipe = Pipe('S', Seq(West, South))
   val pipeWalker = new PipeWalker(getLines, startPipe)
 
   val startPoint = pipeWalker.pipes.collectFirst {
@@ -51,22 +51,23 @@ object PipeMaze {
       case 'F' => Pipe('\u2554', Seq(East, South))
       case '.' => Pipe('\u2591', Seq.empty)
       case 'S' => throw new IllegalArgumentException("cannot create Start pipe like this")
+      case _ => throw new IllegalArgumentException(s"cannot create pipe from: $symbol")
     }
   }
 
   final class PipeWalker(lines: Seq[String], startPipe: Pipe) {
     import scala.annotation.tailrec
 
-    lazy val pipes: Map[Point, Pipe] = readMap(lines)
+    lazy val pipes: Map[Point, Pipe] = readMap(lines).toMap
 
-    private def readMap(lines: Seq[String]): Map[Point, Pipe] = (for {
+    private def readMap(lines: Seq[String]): Iterator[(Point, Pipe)] = for {
       (line, y) <- lines.iterator.zipWithIndex
       (char, x) <- line.iterator.zipWithIndex
       point = Point(x, y)
-    } yield
+    } yield {
       if (char == startPipe.symbol) point -> startPipe
       else point -> Pipe(char)
-    ).toMap
+    }
 
     def drawMap(): Unit = {
       val totalColumns = pipes.keys.map(_.x).max
