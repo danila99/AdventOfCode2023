@@ -7,34 +7,62 @@ object Puzzle12HotSprings1 extends App with inputFileArgs with CommonUtils {
     brokenConditions = numbersPattern.findAllMatchIn(conditions).map(_.matched.toInt).toIndexedSeq
   } yield Row(springs.toList, brokenConditions)
 
-  val arrangements = rows.map { r =>rowArrangements("", r.symbols, r.brokenConditions).size }
+  val arrangements = rows.map { r =>
+    Console.print(s"$r: ")
+    val result = countArrangements(r.symbols, r.brokenConditions, 0)
+    Console.println(result)
+    result
+  }
 
   Console.println(arrangements.sum)
 }
 
 object HotSprings {
-  import scala.util.matching.Regex
+  import scala.collection.mutable
 
-  val brokenPattern: Regex = "#+".r
   val Good = '.'
   val Damaged = '#'
   val Unknown = '?'
 
-  final case class Row(symbols: List[Char], brokenConditions: Seq[Int])
+  final case class Row(symbols: List[Char], brokenConditions: Seq[Int]) {
+    override def toString: String = s"${symbols.mkString} ${brokenConditions.mkString(", ")}"
+  }
 
-  def damagedGroups(row: String): Seq[Int] =
-    brokenPattern.findAllMatchIn(row).map(_.matched.length).toSeq
+  type CountArgs = (List[Char], Seq[Int], Long)
 
-  def isRowValid(row: String, damaged: Seq[Int]): Boolean =
-    damagedGroups(row) == damaged
+  val memo = new mutable.HashMap[CountArgs, Long]()
 
-  def rowArrangements(head: String, tail: List[Char], damagedGroups: Seq[Int]): Seq[String] = tail match {
-    case Nil if isRowValid(head, damagedGroups) => Seq(head)
-    case Nil => Seq.empty
-    case Good :: rest => rowArrangements(head + Good, rest, damagedGroups)
-    case Damaged :: rest => rowArrangements(head + Damaged, rest, damagedGroups)
-    case Unknown :: rest =>
-      rowArrangements(head + Good, rest, damagedGroups) ++ rowArrangements(head + Damaged, rest, damagedGroups)
+  def countArrangements(countArgs: CountArgs): Long = {
+    val (pipes, damagedGroups, result) = countArgs
+
+    if (damagedGroups.isEmpty)
+      return if (pipes.contains(Damaged)) result else result + 1
+    if (pipes.isEmpty)
+      return if (damagedGroups.isEmpty) result + 1 else result
+
+    val damaged = damagedGroups.head
+
+    lazy val canProceedWhenDamaged: Boolean =
+      damaged <= pipes.size &&
+      !pipes.take(damaged).contains(Good) &&
+      (damaged == pipes.size || pipes(damaged) != Damaged)
+
+    lazy val resultForGoodPipe = {
+      val args = (pipes.tail, damagedGroups, result)
+      memo.getOrElseUpdate(args, countArrangements(args))
+    }
+
+    lazy val resultForBrokenPipe = {
+      val args = (pipes.drop(damaged + 1), damagedGroups.tail, result)
+      memo.getOrElseUpdate(args, countArrangements(args))
+    }
+
+    pipes.head match {
+      case Damaged if canProceedWhenDamaged => resultForBrokenPipe
+      case Unknown if canProceedWhenDamaged => resultForGoodPipe + resultForBrokenPipe
+      case Good | Unknown => resultForGoodPipe
+      case _ => result
+    }
   }
 }
 
